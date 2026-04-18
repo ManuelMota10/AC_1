@@ -1,0 +1,156 @@
+
+<style>
+  .wrap { padding: 1rem 0; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); text-align: right; padding: 6px 8px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  th.left { text-align: left; }
+  td { padding: 5px 8px; text-align: right; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+  td.name { text-align: left; color: var(--color-text-secondary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr:hover td { background: var(--color-background-secondary); }
+  .better { color: #1D9E75; font-weight: 500; }
+  .worse  { color: #D85A30; font-weight: 500; }
+  .same   { color: var(--color-text-secondary); }
+  .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 12px; color: var(--color-text-secondary); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+  .card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; }
+  .card-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .card-vals { display: flex; gap: 8px; align-items: baseline; }
+  .card-knn { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
+  .card-mod { font-size: 13px; color: var(--color-text-secondary); }
+  .arrow-up { color: #1D9E75; }
+  .arrow-dn { color: #D85A30; }
+</style>
+<div class="wrap">
+  <div class="legend">
+    <span><span class="dot" style="background:#1D9E75"></span>alterado melhor</span>
+    <span><span class="dot" style="background:#D85A30"></span>alterado pior</span>
+    <span><span class="dot" style="background:var(--color-border-secondary)"></span>igual</span>
+  </div>
+  <div class="summary" id="summary"></div>
+  <table>
+    <thead>
+      <tr>
+        <th class="left" style="width:28%">dataset</th>
+        <th style="width:12%">F1<br><span style="font-weight:400;font-size:10px">normal</span></th>
+        <th style="width:12%">F1<br><span style="font-weight:400;font-size:10px">alterado</span></th>
+        <th style="width:12%">Rec<br><span style="font-weight:400;font-size:10px">normal</span></th>
+        <th style="width:12%">Rec<br><span style="font-weight:400;font-size:10px">alterado</span></th>
+        <th style="width:12%">Prec<br><span style="font-weight:400;font-size:10px">normal</span></th>
+        <th style="width:12%">Prec<br><span style="font-weight:400;font-size:10px">alterado</span></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<script>
+const data = [
+  {name:'mfeat-factors',       f1n:0.9402,f1m:0.86, recn:0.9167,recm:0.93, precn:0.9649,precm:0.80},
+  {name:'arsenic-male-bladder',f1n:0.6000,f1m:0.60, recn:0.4286,recm:0.43, precn:1.0000,precm:1.00},
+  {name:'synthetic_control',   f1n:1.0000,f1m:1.00, recn:1.0000,recm:1.00, precn:1.0000,precm:1.00},
+  {name:'mc1',                 f1n:0.3077,f1m:0.08, recn:0.2000,recm:0.30, precn:0.6667,precm:0.04},
+  {name:'water-treatment',     f1n:0.0800,f1m:0.32, recn:0.0417,recm:0.46, precn:1.0000,precm:0.24},
+  {name:'arsenic-female-lung', f1n:0.8000,f1m:0.91, recn:0.6667,recm:0.83, precn:1.0000,precm:1.00},
+  {name:'analcatdata_dmft',    f1n:0.0328,f1m:0.24, recn:0.0213,recm:0.36, precn:0.0714,precm:0.18},
+  {name:'hiva_agnostic',       f1n:0.4776,f1m:0.24, recn:0.3556,recm:0.47, precn:0.7273,precm:0.16},
+  {name:'ipums_la_99-small',   f1n:0.1028,f1m:0.18, recn:0.0647,recm:0.39, precn:0.2500,precm:0.12},
+  {name:'ipums_la_98-small',   f1n:0.0921,f1m:0.22, recn:0.0591,recm:0.41, precn:0.2090,precm:0.15},
+  {name:'analcatdata_apnea2',  f1n:0.5333,f1m:0.34, recn:0.4211,recm:0.42, precn:0.7273,precm:0.29},
+  {name:'vowel',               f1n:1.0000,f1m:0.90, recn:1.0000,recm:0.96, precn:1.0000,precm:0.84},
+  {name:'kc1-top5',            f1n:0.6667,f1m:0.06, recn:0.5000,recm:0.50, precn:1.0000,precm:0.03},
+  {name:'analcatdata_challenger',f1n:0.0000,f1m:0.00,recn:0.0000,recm:0.00,precn:0.0000,precm:0.00},
+  {name:'analcatdata_lawsuit', f1n:0.8000,f1m:0.75, recn:0.6667,recm:1.00, precn:1.0000,precm:0.60},
+  {name:'scene',               f1n:0.8788,f1m:0.90, recn:0.8992,recm:0.91, precn:0.8593,precm:0.89},
+  {name:'mfeat-zernike',       f1n:0.9587,f1m:0.97, recn:0.9667,recm:0.97, precn:0.9508,precm:0.97},
+  {name:'analcatdata_apnea3',  f1n:0.6154,f1m:0.44, recn:0.4706,recm:0.82, precn:0.8889,precm:0.30},
+  {name:'oil_spill',           f1n:0.1538,f1m:0.18, recn:0.0833,recm:0.17, precn:1.0000,precm:0.20},
+  {name:'optdigits',           f1n:0.9883,f1m:0.97, recn:0.9826,recm:0.98, precn:0.9941,precm:0.96},
+  {name:'analcatdata_birthday',f1n:0.5000,f1m:0.55, recn:0.4375,recm:0.50, precn:0.5833,precm:0.62},
+  {name:'collins',             f1n:0.9796,f1m:0.96, recn:1.0000,recm:1.00, precn:0.9600,precm:0.92},
+  {name:'analcatdata_apnea1',  f1n:0.4615,f1m:0.39, recn:0.3333,recm:0.78, precn:0.7500,precm:0.26},
+  {name:'analcatdata_chlamydia',f1n:0.0000,f1m:0.20,recn:0.0000,recm:0.17,precn:0.0000,precm:0.25},
+  {name:'ar4',                 f1n:0.2500,f1m:0.25, recn:0.1667,recm:0.17, precn:0.5000,precm:0.50},
+  {name:'mfeat-morphological', f1n:0.8099,f1m:0.79, recn:0.8167,recm:0.85, precn:0.8033,precm:0.74},
+  {name:'meta',                f1n:0.0000,f1m:0.09, recn:0.0000,recm:0.19, precn:0.0000,precm:0.06},
+  {name:'arsenic-male-lung',   f1n:1.0000,f1m:1.00, recn:1.0000,recm:1.00, precn:1.0000,precm:1.00},
+  {name:'segment',             f1n:0.9372,f1m:0.93, recn:0.9798,recm:0.99, precn:0.8981,precm:0.88},
+  {name:'ar6',                 f1n:0.0000,f1m:0.29, recn:0.0000,recm:0.20, precn:0.0000,precm:0.50},
+  {name:'pc3',                 f1n:0.0000,f1m:0.21, recn:0.0000,recm:0.42, precn:0.0000,precm:0.14},
+  {name:'backache',            f1n:0.0000,f1m:0.33, recn:0.0000,recm:0.57, precn:0.0000,precm:0.24},
+  {name:'hypothyroid',         f1n:0.5630,f1m:0.71, recn:0.4368,recm:0.70, precn:0.7917,precm:0.72},
+  {name:'pc4',                 f1n:0.1429,f1m:0.18, recn:0.0943,recm:0.15, precn:0.2941,precm:0.21},
+  {name:'soybean',             f1n:0.8679,f1m:0.61, recn:0.8214,recm:0.96, precn:0.9200,precm:0.45},
+  {name:'yeast_ml8',           f1n:0.0000,f1m:0.05, recn:0.0000,recm:0.10, precn:0.0000,precm:0.03},
+  {name:'arsenic-female-bladder',f1n:0.2353,f1m:0.21,recn:0.1667,recm:0.17,precn:0.4000,precm:0.29},
+  {name:'mfeat-pixel',         f1n:0.9917,f1m:0.95, recn:1.0000,recm:1.00, precn:0.9836,precm:0.91},
+  {name:'spectrometer',        f1n:0.8571,f1m:0.82, recn:0.8824,recm:0.94, precn:0.8333,precm:0.73},
+  {name:'analcatdata_halloffame',f1n:0.7302,f1m:0.78,recn:0.6053,recm:0.68,precn:0.9200,precm:0.90},
+  {name:'mfeat-fourier',       f1n:1.0000,f1m:0.98, recn:1.0000,recm:1.00, precn:1.0000,precm:0.97},
+  {name:'kc3',                 f1n:0.1053,f1m:0.10, recn:0.0769,recm:0.08, precn:0.1667,precm:0.12},
+  {name:'page-blocks',         f1n:0.7800,f1m:0.75, recn:0.6964,recm:0.77, precn:0.8864,precm:0.72},
+  {name:'mfeat-karhunen',      f1n:0.9833,f1m:0.91, recn:0.9833,recm:1.00, precn:0.9833,precm:0.83},
+  {name:'ar1',                 f1n:0.0000,f1m:0.00, recn:0.0000,recm:0.00, precn:0.0000,precm:0.00},
+  {name:'visualizing_livestock',f1n:0.5455,f1m:0.74,recn:0.3750,recm:0.88,precn:1.0000,precm:0.64},
+  {name:'sick',                f1n:0.2069,f1m:0.36, recn:0.1304,recm:0.62, precn:0.5000,precm:0.25},
+  {name:'analcatdata_draft',   f1n:0.0000,f1m:0.00, recn:0.0000,recm:0.00, precn:0.0000,precm:0.00},
+  {name:'analcatdata_neavote', f1n:0.0000,f1m:0.14, recn:0.0000,recm:0.50, precn:0.0000,precm:0.08},
+  {name:'JapaneseVowels',      f1n:0.6017,f1m:0.86, recn:0.4463,recm:0.95, precn:0.9231,precm:0.78},
+];
+
+function fmt(v) { return v.toFixed(2); }
+function cls(a, b) {
+  const d = a - b;
+  if (Math.abs(d) < 0.005) return 'same';
+  return d > 0 ? 'better' : 'worse';
+}
+
+const tbody = document.getElementById('tbody');
+data.forEach(r => {
+  const f1c = cls(r.f1m, r.f1n);
+  const recc = cls(r.recm, r.recn);
+  const precc = cls(r.precm, r.precn);
+  tbody.innerHTML += `<tr>
+    <td class="name" title="${r.name}">${r.name}</td>
+    <td>${fmt(r.f1n)}</td>
+    <td class="${f1c}">${fmt(r.f1m)}</td>
+    <td>${fmt(r.recn)}</td>
+    <td class="${recc}">${fmt(r.recm)}</td>
+    <td>${fmt(r.precn)}</td>
+    <td class="${precc}">${fmt(r.precm)}</td>
+  </tr>`;
+});
+
+const f1Better = data.filter(r => r.f1m - r.f1n > 0.005).length;
+const f1Worse  = data.filter(r => r.f1n - r.f1m > 0.005).length;
+const recBetter= data.filter(r => r.recm - r.recn > 0.005).length;
+const avgF1n   = (data.reduce((s,r)=>s+r.f1n,0)/data.length).toFixed(2);
+const avgF1m   = (data.reduce((s,r)=>s+r.f1m,0)/data.length).toFixed(2);
+const avgRecn  = (data.reduce((s,r)=>s+r.recn,0)/data.length).toFixed(2);
+const avgRecm  = (data.reduce((s,r)=>s+r.recm,0)/data.length).toFixed(2);
+
+const summary = document.getElementById('summary');
+summary.innerHTML = `
+  <div class="card">
+    <div class="card-label">F1 médio</div>
+    <div class="card-vals">
+      <span class="card-knn">${avgF1n}</span>
+      <span class="card-mod ${parseFloat(avgF1m)>=parseFloat(avgF1n)?'arrow-up':'arrow-dn'}">${avgF1m} alterado</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-label">Recall médio</div>
+    <div class="card-vals">
+      <span class="card-knn">${avgRecn}</span>
+      <span class="card-mod arrow-up">${avgRecm} alterado</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-label">F1 melhorou</div>
+    <div class="card-vals"><span class="card-knn better">${f1Better}</span><span class="card-mod">datasets</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label">F1 piorou</div>
+    <div class="card-vals"><span class="card-knn worse">${f1Worse}</span><span class="card-mod">datasets</span></div>
+  </div>
+`;
+</script>
